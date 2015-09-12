@@ -185,7 +185,7 @@ $("document").ready(function($) {
         if (this.$rows.length <= index) {
             this.$el.append($row);
         } else {
-            this.$el.children().eq(index).before($row);
+            this.$el.children(".row").eq(index).before($row);
         }
 
         this.$rows.splice(index, 0, $row);
@@ -199,7 +199,7 @@ $("document").ready(function($) {
      */
     LayoutView.prototype.removeRow = function(index) {
         this.$rows.splice(index, 1);
-        this.$el.children().eq(index).remove();
+        this.$el.children(".row").eq(index).remove();
         this._syncRowIndices();
     }
 
@@ -249,7 +249,7 @@ $("document").ready(function($) {
     LayoutView.prototype._dragStart = function(self) {
         console.log("LayoutView._dragStart");
         function makeSpacer(i, j) {
-            return $("<div>")
+            var $spacer = $("<div>")
                 .addClass("drop-space")
                 .bind("drop", function(e){
                     var dt = e.originalEvent.dataTransfer;
@@ -262,7 +262,11 @@ $("document").ready(function($) {
                     var toRow = i;
                     var toIndex = j;
 
-                    self.handlers['moveImageToRow'](fromRow, fromIndex, toRow, toIndex);
+                    if (toIndex >= 0) {
+                        self.handlers['moveImageToRow'](fromRow, fromIndex, toRow, toIndex);
+                    } else {
+                        self.handlers['moveImageToNewRow'](fromRow, fromIndex, toRow);
+                    }
 
                     e.originalEvent.preventDefault();
                     return false;
@@ -275,6 +279,10 @@ $("document").ready(function($) {
                     $(e.target).removeClass("drop-hover");
                     e.originalEvent.preventDefault();
                 });
+            if (j < 0) {
+                $spacer.addClass("spacer-row");
+            }
+            return $spacer;
         }
 
         self.$el.children().each(function(i, row){
@@ -287,16 +295,18 @@ $("document").ready(function($) {
         });
             
         // insert a spacer before each row and after the last row
-        //self.$el.children().each(function(i, row){
-        //    $(row).before(makeSpacer(i, -1));
-        //});
-        //self.$el.append(makeSpacer(self.$el.children().length, -1));
+        var numRows = self.$rows.length;
+        self.$el.children().each(function(i, row){
+            $(row).before(makeSpacer(i, -1));
+        });
+        self.$el.append(makeSpacer(numRows, -1));
     }
 
     LayoutView.prototype._dragEnd = function(self) {
         console.log("LayoutView._dragEnd");
         self.$el.find(".drop-space").remove();
-        self.$el.children().each(function(i, row) {
+        self.$el.removeClass("enable-spacers");
+        self.$el.children(".row").each(function(i, row) {
             self._rebalanceChildren($(row), self.image_margin);
         });
     }
