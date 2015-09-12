@@ -37,16 +37,16 @@ $("document").ready(function($) {
      * Removes from the n'th row the m'th image
      */
     RowModel.prototype.removeImage = function(rowIndex, imageIndex) {
+        console.log("RowModel.removeImage", rowIndex, imageIndex);
         var row = this.get(rowIndex);
-        console.log(row);
-        row.images.splice(imageIndex, 1);
-        console.log(row);
+        var image = row.images.splice(imageIndex, 1)[0];
+        return image;
     }
 
     /**
      * Inserts into the n'th row, the given image at position m.
      */
-    RowModel.prototype.insertImage = function(rowIndex, image, beforeIndex) {
+    RowModel.prototype.insertImage = function(rowIndex, beforeIndex, image) {
         var row = this.get(rowIndex);
         row.images.splice(beforeIndex, 0, image);
     }
@@ -79,7 +79,7 @@ $("document").ready(function($) {
         });
 
         self.view.bind('moveImageToNewRow', function(fromRow, fromIndex, toBeforeRow){
-            var image = self.removeImage(fromRow, fromIndex);
+            var image = self._removeImage(fromRow, fromIndex);
             self._addRow(toBeforeRow, [image]);
         });
     }
@@ -90,7 +90,7 @@ $("document").ready(function($) {
      */
     Controller.prototype._removeImage = function(rowIndex, imageIndex) {
         console.log("Controller._removeImage", rowIndex, imageIndex);
-        this.model.removeImage(rowIndex, imageIndex);
+        var image = this.model.removeImage(rowIndex, imageIndex);
         var row = this.model.get(rowIndex);
         console.log("after removal:", row);
 
@@ -100,6 +100,8 @@ $("document").ready(function($) {
         } else {
             this.view.render('updateRow', {index: rowIndex, images: row.images});
         }
+
+        return image;
     }
 
     /**
@@ -121,6 +123,13 @@ $("document").ready(function($) {
         console.log("Controller._addRow", beforeIndex);
         this.model.create(beforeIndex, images);
         this.view.render('insertRow', {index: beforeIndex, images: images});
+    }
+
+    Controller.prototype._insertImage = function(toRow, toIndex, image) {
+        console.log("Controller._insertImage", toRow, toIndex, image);
+        this.model.insertImage(toRow, toIndex, image);
+        var row = this.model.get(toRow);
+        this.view.render('updateRow', {index:toRow, images:row.images});
     }
 
 /**************
@@ -198,13 +207,14 @@ $("document").ready(function($) {
      * clears the row, and adds all the images again to correct for changes to order or membership.
      */
     LayoutView.prototype.updateRow = function(index, images) {
+        console.log("LayoutView.updateRow", index, images);
         var self = this;
         var $row = this.$rows[index];
 
         $row.empty();
 
         for(var i = 0; i < images.length; i++) {
-            $img = images[i].clone();
+            var $img = $(images[i]);
             $img.bind('click',
                 function(self, imageIndex){
                     return function(e) {
@@ -212,10 +222,83 @@ $("document").ready(function($) {
                         self.handlers['removeImage'](rowIndex, imageIndex);
                     }
                 }(self, i));
+            $img.attr("draggable", true).bind("dragstart",
+                function(self, imageIndex) {
+                    return function(e) {
+                        var rowIndex = $(e.target).parent().data("index");
+
+                        var dt = e.originalEvent.dataTransfer;
+                        dt.setData("text/plain", rowIndex+" "+imageIndex);
+                        dt.effectAllowed = "move";
+
+                        self._dragStart(self);
+                    }
+                }(self, i)
+            ).bind("dragend", function(e) {
+                self._dragEnd(self);
+            });
             $row.append($img);
         }
 
         this._rebalanceChildren($row, this.image_margin);
+    }
+
+    /**
+     * insert spacers as drop targets.
+     */
+    LayoutView.prototype._dragStart = function(self) {
+        console.log("LayoutView._dragStart");
+        function makeSpacer(i, j) {
+            return $("<div>")
+                .addClass("drop-space")
+                .bind("drop", function(e){
+                    var dt = e.originalEvent.dataTransfer;
+                    console.log(dt.getData("text/plain"), "dropped into", i, j);
+
+                    var pos = dt.getData("text/plain").split(" ");
+                    var fromRow = pos[0];
+                    var fromIndex = pos[1];
+
+                    var toRow = i;
+                    var toIndex = j;
+
+                    self.handlers['moveImageToRow'](fromRow, fromIndex, toRow, toIndex);
+
+                    e.originalEvent.preventDefault();
+                    return false;
+                })
+                .bind("dragover dragenter", function(e){
+                    $(e.target).addClass("drop-hover");
+                    e.originalEvent.preventDefault();
+                })
+                .bind("dragleave", function(e){
+                    $(e.target).removeClass("drop-hover");
+                    e.originalEvent.preventDefault();
+                });
+        }
+
+        self.$el.children().each(function(i, row){
+            // insert spacers before each col and at the end of the row.
+            $(row).children().each(function(j, col) {
+                $(col).before(makeSpacer(i, j));
+            });
+            $(row).append(makeSpacer(i, $(row).children().length));
+            self._rebalanceChildren($(row), self.image_margin);
+        });
+            
+        // insert a spacer before each row and after the last row
+        //self.$el.children().each(function(i, row){
+        //    $(row).before(makeSpacer(i, -1));
+        //});
+        //self.$el.append(makeSpacer(self.$el.children().length, -1));
+    }
+
+    LayoutView.prototype._dragEnd = function(self) {
+        console.log("LayoutView._dragEnd");
+        self.$el.find(".drop-space").remove();
+        self.$el.children().each(function(i, row) {
+            self._rebalanceChildren($(row), self.image_margin);
+        });
     }
 
     /**
@@ -285,16 +368,16 @@ $("document").ready(function($) {
 
         for (var i = 0; i < files.length; i++) {
             var file = files[i];
-            var $img = $("<img>").data("file-name", file.name);
-            images.push($img);
+            var img = document.createElement("img");
+            images.push(img);
 
-            $img.bind("load", function(e) {
+            img.addEventListener("load", function(e) {
                 still_loading--;
                 if (still_loading == 0)
                     self.handlers['addImages'](images);
             });
 
-            $img.attr("src", window.URL.createObjectURL(file));
+            img.src = window.URL.createObjectURL(file);
 
         }
     }

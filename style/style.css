@@ -60,7 +60,7 @@ body {
     right: 0;
     padding:1em;
 
-    background-color:#eef;
+    background-color:#eee;
     color:#111;
 }
 
@@ -90,11 +90,21 @@ body {
     content: " ";
 }
 
-.row img {
+.row img, .row .drop-space {
     position:absolute;
     top:0;
     width:25%;
-    height:auto;
     display:block;
     float:left;
+}
+
+.drop-space {
+    box-sizing:border-box;
+    height:200%;
+    background-color:#999;
+    border:4px dashed #666;
+}
+
+.drop-hover {
+    background-color:#fff;
 }
