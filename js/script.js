@@ -7,8 +7,9 @@ $("document").ready(function($) {
     }
 
     RowModel.prototype.get = function(index) {
-        if (this.rows.length < index) {
-            return this.rows[i];
+        console.log("RowModel.get", index);
+        if (index < this.rows.length) {
+            return this.rows[index];
         } else {
             return undefined;
         }
@@ -19,8 +20,9 @@ $("document").ready(function($) {
      */
     RowModel.prototype.create = function(beforeIndex, images) {
         var newRow = {
-            images: images.splice()
+            images: images.slice()
         }
+        console.log("create", newRow);
         this.rows.splice(beforeIndex, 0, newRow);
     }
 
@@ -36,9 +38,9 @@ $("document").ready(function($) {
      */
     RowModel.prototype.removeImage = function(rowIndex, imageIndex) {
         var row = this.get(rowIndex);
+        console.log(row);
         row.images.splice(imageIndex, 1);
-        if (row.images.length == 0)
-            this.remove(rowIndex);
+        console.log(row);
     }
 
     /**
@@ -87,8 +89,10 @@ $("document").ready(function($) {
      * Removes the image from the given row, and deletes the row if it becomes empty as a result.
      */
     Controller.prototype._removeImage = function(rowIndex, imageIndex) {
+        console.log("Controller._removeImage", rowIndex, imageIndex);
         this.model.removeImage(rowIndex, imageIndex);
         var row = this.model.get(rowIndex);
+        console.log("after removal:", row);
 
         if (row.images.length == 0) {
             this.model.remove(rowIndex);
@@ -153,7 +157,7 @@ $("document").ready(function($) {
                 this.removeRow(data.index);
                 break;
             case 'updateRow':
-                this.updateRow(data.index);
+                this.updateRow(data.index, data.images);
                 break;
         }
     }
@@ -173,6 +177,7 @@ $("document").ready(function($) {
 
         this.$rows.splice(index, 0, $row);
 
+        this._syncRowIndices();
         this.updateRow(index, images);
     }
 
@@ -182,19 +187,29 @@ $("document").ready(function($) {
     LayoutView.prototype.removeRow = function(index) {
         this.$rows.splice(index, 1);
         this.$el.children().eq(index).remove();
+        this._syncRowIndices();
     }
 
     /**
      * clears the row, and adds all the images again to correct for changes to order or membership.
      */
     LayoutView.prototype.updateRow = function(index, images) {
-        // replace images in the row
+        var self = this;
         var $row = this.$rows[index];
 
-        //$row.empty();
+        $row.empty();
 
         for(var i = 0; i < images.length; i++) {
-            $row.append(images[i]);
+            $img = images[i].clone();
+            $img.bind('click',
+                function(self, imageIndex){
+                    return function(e) {
+                        var rowIndex = $(e.target).parent().data("index");
+                        console.log($(e.target).parent());
+                        self.handlers['removeImage'](rowIndex, imageIndex);
+                    }
+                }(self, i));
+            $row.append($img);
         }
 
         this._rebalanceRow(index);
@@ -205,6 +220,12 @@ $("document").ready(function($) {
      */
     LayoutView.prototype._rebalanceRow = function(index) {
 
+    }
+
+    LayoutView.prototype._syncRowIndices = function() {
+        for (var i = 0; i < this.$rows.length; i++) {
+            this.$rows[i].data("index", i);
+        }
     }
 
     LayoutView.prototype.bind = function(name, handler) {
@@ -257,5 +278,7 @@ $("document").ready(function($) {
 var m = new RowModel();
 var v = new LayoutView();
 var c = new Controller(m, v);
+
+console.log(c);
 
 });
