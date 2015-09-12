@@ -56,7 +56,6 @@ body {
 }
 
 #controls {
-    position:absolute;
     top: 0;
     right: 0;
     padding:1em;
@@ -73,3 +72,29 @@ body {
 }
 
 /* Row-Layout styles */
+.row-container {
+    width:80%;
+    max-width:1600px;
+    margin:0 auto;
+}
+
+.row {
+    overflow:hidden;
+    position:relative;
+    margin-bottom:10px;
+}
+
+.row::after {
+    display:block;
+    clear:both;
+    content: " ";
+}
+
+.row img {
+    position:absolute;
+    top:0;
+    width:25%;
+    height:auto;
+    display:block;
+    float:left;
+}

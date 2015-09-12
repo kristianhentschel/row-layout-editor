@@ -127,9 +127,11 @@ $("document").ready(function($) {
  * Layout View
  **************/
     var LayoutView = function() {
-        this.$el = $("#temp-loaded-images");
+        this.$el = $("#layout-view");
         this.$rows = [];
         this.handlers = [];
+
+        this.image_margin = 10;
 
         this.initialize();
     }
@@ -167,7 +169,9 @@ $("document").ready(function($) {
      */
     LayoutView.prototype.insertRow = function(index, images) {
         console.log("LayoutView.insertRow", index);
-        var $row = $("<li>").text("Row "+index);
+        var $row = $("<div>")
+            .addClass("row")
+            .attr("title", "Row "+index);
 
         if (this.$rows.length <= index) {
             this.$el.append($row);
@@ -205,21 +209,62 @@ $("document").ready(function($) {
                 function(self, imageIndex){
                     return function(e) {
                         var rowIndex = $(e.target).parent().data("index");
-                        console.log($(e.target).parent());
                         self.handlers['removeImage'](rowIndex, imageIndex);
                     }
                 }(self, i));
             $row.append($img);
         }
 
-        this._rebalanceRow(index);
+        this._rebalanceChildren($row, this.image_margin);
     }
 
     /**
-     * calculates the css image widths, heights, and positions
+     * calculates the css element widths, heights, and positions, based on parent element width
+     * and the given pixel margin to maintain between the child elements
      */
-    LayoutView.prototype._rebalanceRow = function(index) {
+    LayoutView.prototype._rebalanceChildren = function($el, margin) {
+        console.log('_rebalanceChildren', $el);
 
+        var total_width = $el.width();
+        var num_children = $el.children().length;
+        var available_width = total_width - (num_children - 1) * margin;
+
+        var widths = [];
+        var heights = [];
+        var max_height = 0;
+
+        $el.children().each(function(i, col) {
+            $col = $(col);
+            var w = $col.width();
+            var h = $col.height();
+            max_height = Math.max(max_height, h);
+            widths.push(w);
+            heights.push(h);
+        });
+
+        var content_width = 0;
+
+        for(var i = 0; i < num_children; i++) {
+            var scaled_width = max_height * widths[i] / heights[i];
+            content_width += scaled_width;
+        }
+
+        var scaled_height = available_width * max_height / content_width;
+        var used_width = 0;
+
+        $el.height(scaled_height + "px");
+
+        $el.children().each(function(i, col) {
+            var $col = $(col);
+            var scaled_width = widths[i] / heights[i] * scaled_height;
+            var left = used_width + i * margin;
+
+            $col.css('left', left + "px")
+                .css('width', scaled_width + "px")
+                .css('height', scaled_height + "px");
+
+            used_width += scaled_width;
+        });
     }
 
     LayoutView.prototype._syncRowIndices = function() {
@@ -233,7 +278,6 @@ $("document").ready(function($) {
     }
 
     LayoutView.prototype.drop = function(e, self) {
-        console.log(e);
         var dt = e.dataTransfer;
         var files = dt.files;
         var images = [];
