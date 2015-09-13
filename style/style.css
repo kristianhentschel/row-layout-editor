@@ -93,6 +93,7 @@ h1 {
     overflow:hidden;
     position:relative;
     margin: 10px 0;
+    transition: height ease-out 0.5s;
 }
 
 .enable-spacers .row {
@@ -103,9 +104,6 @@ h1 {
     position:absolute;
     top:0;
     display:block;
-}
-
-.row img {
     transition: left ease-out 0.5s,
                 top ease-out 0.5s,
                 width ease-out 0.5s,

@@ -22,8 +22,8 @@ $("document").ready(function($) {
      * returns the current index of the given row, returning -1 if the index is not there.
      */
     Model.prototype._findRowIndex = function(rowId) {
-        for(var i = 0; i < rowOrder.length; i++) {
-            if(rowOrder[i] == rowId) {
+        for(var i = 0; i < this.rowOrder.length; i++) {
+            if(this.rowOrder[i] == rowId) {
                 return i;
             }
         }
@@ -91,7 +91,7 @@ $("document").ready(function($) {
                 return i;
             }
         }
-        return -1;
+        return undefined;
     }
 
     /**
@@ -99,7 +99,7 @@ $("document").ready(function($) {
      */
     Model.prototype.removeImage = function(rowId, imageId) {
         console.log("Model.removeImage", rowId, imageId);
-        var row = this.get(rowId);
+        var row = this.getRow(rowId);
         row.images.splice(this._findImageIndex(rowId, imageId), 1);
     }
 
@@ -139,23 +139,23 @@ $("document").ready(function($) {
         self.model = model;
         self.view = view;
 
-        self.view.bind('removeImage', function(rowIndex, imageIndex) {
-            self._removeImage(rowIndex, imageIndex);
+        self.view.bind('removeImage', function(rowId, imageId) {
+            self._removeImage(rowId, imageId);
         })
 
         self.view.bind('addImages', function(images) {
             self.addImages(images);
         });
 
-        self.view.bind('moveImageToRow', function(fromRow, fromIndex, toRow, toIndex){
-            var image = self._removeImage(fromRow, fromIndex);
-            self._insertImage(toRow, toIndex, image);
-        });
+        //self.view.bind('moveImageToRow', function(fromRow, fromIndex, toRow, toIndex){
+        //    var image = self._removeImage(fromRow, fromIndex);
+        //    self._insertImage(toRow, toIndex, image);
+        //});
 
-        self.view.bind('moveImageToNewRow', function(fromRow, fromIndex, toBeforeRow){
-            var image = self._removeImage(fromRow, fromIndex);
-            self._addRow(toBeforeRow, [image]);
-        });
+        //self.view.bind('moveImageToNewRow', function(fromRow, fromIndex, toBeforeRow){
+        //    var image = self._removeImage(fromRow, fromIndex);
+        //    self._addRow(toBeforeRow, [image]);
+        //});
     }
 
 
@@ -164,17 +164,14 @@ $("document").ready(function($) {
      */
     Controller.prototype._removeImage = function(rowId, imageId) {
         console.log("Controller._removeImage", rowId, imageId);
-        var image = this.model.removeImage(rowId, imageId);
-        var row = this.model.get(rowId);
+        var row = this.model.getRow(rowId);
+        this.model.removeImage(rowId, imageId);
+        this.view.render('updateRow', {rowId: rowId, images:row.images});
 
         if (row.images.length == 0) {
             this.model.removeRow(rowId);
-            this.view.render('removeRow', {rowId: rowId});
-        } else {
-            this.view.render('updateRow', {rowId: rowId, images: row.images});
+            this.view.render('updateRowOrder', {rowOrder: this.model.getRowOrder()});
         }
-
-        return image;
     }
 
     /**
@@ -293,32 +290,25 @@ $("document").ready(function($) {
 
         for(var i = 0; i < images.length; i++) {
             var img = self.getImg(images[i]);
+            img.dataset.rowId = rowId;
             
-            $(img)
-            .bind('click',
-                function(self, imageIndex){
-                    return function(e) {
-                        var rowIndex = $(e.target).parent().data("index");
-                        self.handlers['removeImage'](rowIndex, imageIndex);
-                    }
-                }(self, i))
-            .attr("draggable", true).bind("dragstart",
-                function(self, imageIndex) {
-                    return function(e) {
-                        var rowIndex = $(e.target).parent().data("index");
+            // I do not use jQuery events here, because they get lost when the element becomes
+            // detached from the DOM, as in updateRowOrder.
+            // TODO this appraoch adds duplicate listeners...
+            //.attr("draggable", true)
+            //.bind("dragstart",
+            //    function(self, imageIndex) {
+            //        return function(e) {
+            //            var rowIndex = $(e.target).parent().data("index");
 
-                        var dt = e.originalEvent.dataTransfer;
-                        dt.setData("text/plain", rowIndex+" "+imageIndex);
-                        dt.effectAllowed = "move";
+            //            var dt = e.originalEvent.dataTransfer;
+            //            dt.setData("text/plain", rowIndex+" "+imageIndex);
+            //            dt.effectAllowed = "move";
 
-                        self._dragStart(self);
-                    }
-                }(self, i))
-            .bind("dragend",
-                function(e) {
-                    self._dragEnd(self);
-                })
-            .appendTo(row);
+            //            self._dragStart(self);
+            //        }
+            //    }(self, i))
+            $(row).append(img);
         }
 
         this._rebalanceChildren($(row), this.image_margin);
@@ -329,10 +319,19 @@ $("document").ready(function($) {
     }
 
     LayoutView.prototype.createImg = function(image) {
+        var self = this;
         var img = document.createElement("img");
         img.src = image.src;
         this.imgs[image.src] = img;
+        img.dataset.imageId = image.imageId;
+        img.addEventListener('click', function(e) { self._imageClickHandler(e, self); }, false);
         return img;
+    }
+
+    LayoutView.prototype._imageClickHandler = function(e, self) {
+        var rowId = e.target.dataset.rowId;
+        var imageId = e.target.dataset.imageId;
+        self.handlers['removeImage'](rowId, imageId);
     }
 
     /**
