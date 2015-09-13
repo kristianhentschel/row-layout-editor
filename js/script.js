@@ -1,61 +1,135 @@
 $("document").ready(function($) {
-/******************************
- * Row Model, stores rows (duh)
- ******************************/
+/*****************************************************
+ * Model, stores data about images, and the row layout.
+ *****************************************************/
     var Model = function() {
+        this.lastRowId = 0;
+        this.lastImageId = 0;
+        this.images = [];
         this.rows = [];
-    }
-
-    Model.prototype.get = function(index) {
-        console.log("Model.get", index);
-        if (index < this.rows.length) {
-            return this.rows[index];
-        } else {
-            return undefined;
-        }
+        this.rowOrder = [];
     }
 
     /**
-     * Inserts a new row before the n'th row, and populates it with the given array of images.
+     * look up a row by Id
      */
-    Model.prototype.create = function(beforeIndex, images) {
+    Model.prototype.getRow = function(rowId) {
+        console.log("Model.get", rowId);
+        return this.rows[rowId];
+    }
+
+    /**
+     * returns the current index of the given row, returning -1 if the index is not there.
+     */
+    Model.prototype._findRowIndex = function(rowId) {
+        for(var i = 0; i < rowOrder.length; i++) {
+            if(rowOrder[i] == rowId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Inserts a new row before the given row.
+     */
+    Model.prototype.createRow = function(imageIds, beforeRowId) {
         var newRow = {
-            images: images.slice()
+            rowId: this.lastRowId++,
+            images: []
         }
-        console.log("create", newRow);
-        this.rows.splice(beforeIndex, 0, newRow);
+
+        // insert into row-order in correct position (at end or as specified)
+        rowIndex = this.rowOrder.length;
+        if (beforeRowId !== undefined)
+            rowIndex = this._findRowIndex(beforeRowId);
+        this.rowOrder.splice(rowIndex, 0, newRow.rowId);
+
+        // insert into row-map
+        this.rows[newRow.rowId] = newRow;
+
+        // add the images to the row
+        if (imageIds !== undefined) {
+            for(var i = 0; i < imageIds.length; i++) {
+                this.insertImage(rowId, imageIds[i]);
+            }
+        }
+
+        return newRow.rowId;
     }
 
     /**
-     * Removes the n'th row from the model.
+     * Creates a new image object
      */
-    Model.prototype.remove = function(rowIndex) {
-        this.rows.splice(rowIndex, 1);
+    Model.prototype.createImage = function(image) {
+        var newImage = {
+            imageId: this.lastImageId++,
+            src: image.src,
+            height: image.height,
+            width: image.width,
+            alt: image.alt,
+            fileName: image.fileName
+        }
+        this.images[newImage.imageId] = newImage;
+        return newImage.imageId;
     }
 
     /**
-     * Removes from the n'th row the m'th image
+     * Removes the given row from the layout
      */
-    Model.prototype.removeImage = function(rowIndex, imageIndex) {
-        console.log("Model.removeImage", rowIndex, imageIndex);
-        var row = this.get(rowIndex);
-        var image = row.images.splice(imageIndex, 1)[0];
-        return image;
+    Model.prototype.removeRow = function(rowId) {
+        this.rowOrder.splice(this._findRowIndex(rowId), 1);
     }
 
     /**
-     * Inserts into the n'th row, the given image at position m.
+     * finds the position in a row of the given image id.
      */
-    Model.prototype.insertImage = function(rowIndex, beforeIndex, image) {
-        var row = this.get(rowIndex);
-        row.images.splice(beforeIndex, 0, image);
+    Model.prototype._findImageIndex = function(rowId, imageId) {
+        var row = this.getRow(rowId);
+        for(var i = 0; i < row.images.length; i++) {
+            if(row.images[i].imageId == imageId) {
+                return i;
+            }
+        }
+        return -1;
     }
 
+    /**
+     * Removes the given image from the given row.
+     */
+    Model.prototype.removeImage = function(rowId, imageId) {
+        console.log("Model.removeImage", rowId, imageId);
+        var row = this.get(rowId);
+        row.images.splice(this._findImageIndex(rowId, imageId), 1);
+    }
+
+    /**
+     * Inserts into the given row, before a given image id, this image id.
+     */
+    Model.prototype.insertImage = function(rowId, imageId, beforeImageId) {
+        var row = this.getRow(rowId);
+        var index = row.images.length;
+
+        if (beforeImageId !== undefined)
+            index = this._findImageIndex(rowId, imageId);
+
+        row.images.splice(index, 0, this.getImage(imageId));
+    }
+
+    /**
+     * return the number of rows currently in the layout
+     */
     Model.prototype.getNumRows = function() {
-        return this.rows.length;
+        return this.rowOrder.length;
     }
 
+    Model.prototype.getRowOrder = function() {
+        return this.rowOrder.slice();
+    }
 
+    Model.prototype.getImage = function(imageId) {
+        return this.images[imageId];
+    }
 /************
  * Controller
  ************/
@@ -70,7 +144,7 @@ $("document").ready(function($) {
         })
 
         self.view.bind('addImages', function(images) {
-            self._addImages(images);
+            self.addImages(images);
         });
 
         self.view.bind('moveImageToRow', function(fromRow, fromIndex, toRow, toIndex){
@@ -88,52 +162,55 @@ $("document").ready(function($) {
     /**
      * Removes the image from the given row, and deletes the row if it becomes empty as a result.
      */
-    Controller.prototype._removeImage = function(rowIndex, imageIndex) {
-        console.log("Controller._removeImage", rowIndex, imageIndex);
-        var image = this.model.removeImage(rowIndex, imageIndex);
-        var row = this.model.get(rowIndex);
-        console.log("after removal:", row);
+    Controller.prototype._removeImage = function(rowId, imageId) {
+        console.log("Controller._removeImage", rowId, imageId);
+        var image = this.model.removeImage(rowId, imageId);
+        var row = this.model.get(rowId);
 
-        /* TODO: changing the indices of subsequent rows by deleting the empty row causes error in the
-         * moveImage functions, which depend on unchanged indices.
-         * Example: Move the only image in a row to any row after it.
-         */
         if (row.images.length == 0) {
-            this.model.remove(rowIndex);
-            this.view.render('removeRow', {index: rowIndex});
+            this.model.removeRow(rowId);
+            this.view.render('removeRow', {rowId: rowId});
         } else {
-            this.view.render('updateRow', {index: rowIndex, images: row.images});
+            this.view.render('updateRow', {rowId: rowId, images: row.images});
         }
 
         return image;
     }
 
     /**
-     * distributes a large number of images among new rows.
+     * creates newly loaded images and distributes them into new rows.
      */
-    Controller.prototype._addImages = function(images) {
-        console.log("Controller._addImages", images);
-        var imagesPerRow = 4;
+    Controller.prototype.addImages = function(images) {
+        console.log("Controller.addImages", images);
 
+        var imagesPerRow = 4;
+        var used = 0;
+        var rowId;
         while(images.length > 0) {
-            this._addRow(this.model.getNumRows(), images.splice(0, imagesPerRow));
+            // create a row in the model
+            if (used % imagesPerRow == 0)
+                rowId = this.model.createRow();
+
+            // take the first image from the argument list, and increment the number of images used.
+            var image = images.shift();
+            used++;
+
+            // Create the image object in the model
+            var imageId = this.model.createImage(image);
+
+            // Insert the image id into the row, and tell the view to update this row.
+            this.insertImage(rowId, imageId);
         }
     }
 
-    /**
-     * adds a row at the specified index, containing the given images.
-     */
-    Controller.prototype._addRow = function(beforeIndex, images) {
-        console.log("Controller._addRow", beforeIndex);
-        this.model.create(beforeIndex, images);
-        this.view.render('insertRow', {index: beforeIndex, images: images});
-    }
+    Controller.prototype.insertImage = function(toRowId, imageId, beforeImageId) {
+        console.log("Controller._insertImage", toRowId, imageId, beforeImageId);
 
-    Controller.prototype._insertImage = function(toRow, toIndex, image) {
-        console.log("Controller._insertImage", toRow, toIndex, image);
-        this.model.insertImage(toRow, toIndex, image);
-        var row = this.model.get(toRow);
-        this.view.render('updateRow', {index:toRow, images:row.images});
+        this.model.insertImage(toRowId, imageId, beforeImageId);
+        var row = this.model.getRow(toRowId);
+
+        this.view.render('updateRowOrder', {rowOrder: this.model.getRowOrder()});
+        this.view.render('updateRow', {rowId: toRowId, images: row.images});
     }
 
 /**************
@@ -141,7 +218,10 @@ $("document").ready(function($) {
  **************/
     var LayoutView = function() {
         this.$el = $("#layout-view");
-        this.$rows = [];
+        this.imgs = []; // DOMElements by objectUrl
+        this.rows = []; // DOMElements by model rowId
+        this.orderedRows = []; // DOMElements in order
+
         this.handlers = [];
 
         this.image_margin = 10;
@@ -156,77 +236,73 @@ $("document").ready(function($) {
         var self = this;
         self.$el.empty();
         
-        var dropbox = document.getElementById("controls");
-        dropbox.addEventListener("dragenter", self._dragEnter, false);
-        dropbox.addEventListener("dragover", self._dragOver, false);
-        dropbox.addEventListener("drop", function(e){self._drop(e, self);}, false);
+        var dropbox = document;
+        dropbox.addEventListener("dragenter", self._fileDragOver, false);
+        dropbox.addEventListener("dragover", self._fileDragOver, false);
+        dropbox.addEventListener("drop", function(e){self._fileDrop(e, self);}, false);
     }
 
     LayoutView.prototype.render = function(action, data) {
         console.log("LayoutView.render", action, data);
         switch(action) {
-            case 'insertRow':
-                this.insertRow(data.index, data.images);
-                break;
-            case 'removeRow':
-                this.removeRow(data.index);
+            case 'updateRowOrder':
+                this.updateRowOrder(data.rowOrder);
                 break;
             case 'updateRow':
-                this.updateRow(data.index, data.images);
+                this.updateRow(data.rowId, data.images);
                 break;
         }
     }
 
     /**
-     * creates the dom elements and registers event handlers for the new row.
+     * creates new, empty rows, changes the order to match, and removes deleted rows from view,
+     * making the rows visible in the document in the specified order.
      */
-    LayoutView.prototype.insertRow = function(index, images) {
-        console.log("LayoutView.insertRow", index);
-        var $row = $("<div>")
-            .addClass("row")
-            .attr("title", "Row "+index);
+    LayoutView.prototype.updateRowOrder = function(rowIds) {
+        console.log("LayoutView.updateRowOrder", rowIds);
+        this.orderedRows = [];
+        this.$el.empty();
+        for(var i = 0; i < rowIds.length; i++) {
+            var rowId = rowIds[i];
+            var row = this.rows[rowId] || this.createRow(rowId);
 
-        if (this.$rows.length <= index) {
-            this.$el.append($row);
-        } else {
-            this.$el.children(".row").eq(index).before($row);
+            this.orderedRows.push[row];
+            this.$el.append(row);
         }
-
-        this.$rows.splice(index, 0, $row);
-
-        this._syncRowIndices();
-        this.updateRow(index, images);
     }
 
     /**
-     * deletes the row's dom element
+     * creates a new empty row but does not display it.
      */
-    LayoutView.prototype.removeRow = function(index) {
-        this.$rows.splice(index, 1);
-        this.$el.children(".row").eq(index).remove();
-        this._syncRowIndices();
+    LayoutView.prototype.createRow = function (rowId) {
+        var row = document.createElement("div");
+        row.className = "row";
+        this.rows[rowId] = row;
+        return row;
     }
 
     /**
      * clears the row, and adds all the images again to correct for changes to order or membership.
      */
-    LayoutView.prototype.updateRow = function(index, images) {
-        console.log("LayoutView.updateRow", index, images);
+    LayoutView.prototype.updateRow = function(rowId, images) {
+        console.log("LayoutView.updateRow", rowId, images);
         var self = this;
-        var $row = this.$rows[index];
+        var row = this.rows[rowId];
 
-        $row.empty();
+        $(row).empty();
 
         for(var i = 0; i < images.length; i++) {
-            var $img = $(images[i]);
-            $img.bind('click',
+            var img = self.getImg(images[i]);
+            
+            $(img)
+            .bind('click',
                 function(self, imageIndex){
                     return function(e) {
                         var rowIndex = $(e.target).parent().data("index");
                         self.handlers['removeImage'](rowIndex, imageIndex);
                     }
-                }(self, i));
-            $img.attr("draggable", true).bind("dragstart",
+                }(self, i))
+            .attr("draggable", true).bind("dragstart",
                 function(self, imageIndex) {
                     return function(e) {
                         var rowIndex = $(e.target).parent().data("index");
@@ -237,14 +313,26 @@ $("document").ready(function($) {
 
                         self._dragStart(self);
                     }
-                }(self, i)
-            ).bind("dragend", function(e) {
-                self._dragEnd(self);
-            });
-            $row.append($img);
+                }(self, i))
+            .bind("dragend",
+                function(e) {
+                    self._dragEnd(self);
+                })
+            .appendTo(row);
         }
 
-        this._rebalanceChildren($row, this.image_margin);
+        this._rebalanceChildren($(row), this.image_margin);
+    }
+
+    LayoutView.prototype.getImg = function(image) {
+        return this.imgs[image.src] || this.createImg(image);
+    }
+
+    LayoutView.prototype.createImg = function(image) {
+        var img = document.createElement("img");
+        img.src = image.src;
+        this.imgs[image.src] = img;
+        return img;
     }
 
     /**
@@ -325,16 +413,15 @@ $("document").ready(function($) {
 
         var total_width = $el.width();
         var num_children = $el.children("img").length;
-        var available_width = total_width - (num_children + 1) * margin;
+        var available_width = total_width - (num_children - 1) * margin;
 
         var widths = [];
         var heights = [];
         var max_height = 0;
 
-        $el.children("img").each(function(i, col) {
-            $col = $(col);
-            var w = $col.width();
-            var h = $col.height();
+        $el.children("img").each(function(i, img) {
+            var w = img.width;
+            var h = img.height;
             max_height = Math.max(max_height, h);
             widths.push(w);
             heights.push(h);
@@ -363,66 +450,58 @@ $("document").ready(function($) {
 
             used_width += scaled_width;
         });
-
-        // adjust position of spacers if any
-        used_width = 0;
-        $el.children().each(function(i, col) {
-            var $col = $(col);
-            if($col.hasClass("drop-space")) {
-                $col.css("left", used_width + "px");
-                used_width += margin;
-            } else {
-                used_width += parseFloat($col.css("width"));
-            }
-        });
-    }
-
-    LayoutView.prototype._syncRowIndices = function() {
-        for (var i = 0; i < this.$rows.length; i++) {
-            this.$rows[i].data("index", i);
-        }
     }
 
     LayoutView.prototype.bind = function(name, handler) {
         this.handlers[name] = handler;
     }
 
-    LayoutView.prototype.drop = function(e, self) {
+
+    LayoutView.prototype._fileDrop = function(e, self) {
+        e.preventDefault();
+        e.stopPropagation();
+
         var dt = e.dataTransfer;
         var files = dt.files;
-        var images = [];
         var still_loading = files.length;
+        var allowedTypes = /image\/.*/;
+        var images = [];
 
         for (var i = 0; i < files.length; i++) {
             var file = files[i];
-            var img = document.createElement("img");
-            images.push(img);
+            if(allowedTypes.test(file.type)) {
+                var img = document.createElement("img");
 
-            img.addEventListener("load", function(e) {
+                img.addEventListener("load", function(e) {
+                    still_loading--;
+                    console.log("loaded", images.length - still_loading, "of", images.length);
+                    if (still_loading == 0)
+                        self.handlers['addImages'](images);
+                });
+
+                img.src = window.URL.createObjectURL(file);
+                img.alt = file.name.split(".")[0] || file.name;
+                images.push({
+                    fileName: file.name,
+                    src: img.src,
+                    alt: img.alt,
+                    width: img.width,
+                    height: img.height
+                });
+            } else {
                 still_loading--;
-                if (still_loading == 0)
-                    self.handlers['addImages'](images);
-            });
-
-            img.src = window.URL.createObjectURL(file);
-
+            }
         }
     }
 
-    LayoutView.prototype._drop = function(e, self) {
-        e.preventDefault();
-        e.stopPropagation();
-        self.drop(e, self);
-    }
-
-    LayoutView.prototype._dragEnter = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    LayoutView.prototype._dragOver = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    LayoutView.prototype._fileDragOver = function(e) {
+        // Accept only drag-and-drop events that are carrying files.
+        var dt = e.dataTransfer;
+        if (dt.files.length > 0) {
+            dt.dropEffect = "link";
+            e.preventDefault();
+            e.stopPropagation();
+        }
     }
 
 /*************
