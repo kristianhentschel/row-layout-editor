@@ -94,6 +94,10 @@ $("document").ready(function($) {
         var row = this.model.get(rowIndex);
         console.log("after removal:", row);
 
+        /* TODO: changing the indices of subsequent rows by deleting the empty row causes error in the
+         * moveImage functions, which depend on unchanged indices.
+         * Example: Move the only image in a row to any row after it.
+         */
         if (row.images.length == 0) {
             this.model.remove(rowIndex);
             this.view.render('removeRow', {index: rowIndex});
@@ -285,7 +289,7 @@ $("document").ready(function($) {
             return $spacer;
         }
 
-        self.$el.children().each(function(i, row){
+        self.$el.children(".row").each(function(i, row){
             // insert spacers before each col and at the end of the row.
             $(row).children().each(function(j, col) {
                 $(col).before(makeSpacer(i, j));
@@ -296,10 +300,11 @@ $("document").ready(function($) {
             
         // insert a spacer before each row and after the last row
         var numRows = self.$rows.length;
-        self.$el.children().each(function(i, row){
+        self.$el.children(".row").each(function(i, row){
             $(row).before(makeSpacer(i, -1));
         });
         self.$el.append(makeSpacer(numRows, -1));
+        self.$el.addClass("enable-spacers");
     }
 
     LayoutView.prototype._dragEnd = function(self) {
@@ -319,14 +324,14 @@ $("document").ready(function($) {
         console.log('_rebalanceChildren', $el);
 
         var total_width = $el.width();
-        var num_children = $el.children().length;
-        var available_width = total_width - (num_children - 1) * margin;
+        var num_children = $el.children("img").length;
+        var available_width = total_width - (num_children + 1) * margin;
 
         var widths = [];
         var heights = [];
         var max_height = 0;
 
-        $el.children().each(function(i, col) {
+        $el.children("img").each(function(i, col) {
             $col = $(col);
             var w = $col.width();
             var h = $col.height();
@@ -347,16 +352,28 @@ $("document").ready(function($) {
 
         $el.height(scaled_height + "px");
 
-        $el.children().each(function(i, col) {
+        $el.children("img").each(function(i, col) {
             var $col = $(col);
             var scaled_width = widths[i] / heights[i] * scaled_height;
-            var left = used_width + i * margin;
+            var left = used_width + (i + 1) * margin;
 
             $col.css('left', left + "px")
                 .css('width', scaled_width + "px")
                 .css('height', scaled_height + "px");
 
             used_width += scaled_width;
+        });
+
+        // adjust position of spacers if any
+        used_width = 0;
+        $el.children().each(function(i, col) {
+            var $col = $(col);
+            if($col.hasClass("drop-space")) {
+                $col.css("left", used_width + "px");
+                used_width += margin;
+            } else {
+                used_width += parseFloat($col.css("width"));
+            }
         });
     }
 
