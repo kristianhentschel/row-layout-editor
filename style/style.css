@@ -51,7 +51,8 @@ table {
 body {
     color: #eee;
     line-height:1.5;
-    font-family:sans-serif;
+    font-family:Georgia, serif;
+    font-weight:100;
     background-color:#111;
 }
 
@@ -62,6 +63,16 @@ body {
 
     background-color:#eee;
     color:#111;
+
+
+    text-align:center;
+}
+
+h1 {
+    text-transform: uppercase;
+    letter-spacing:.5em;
+    font-size:1.2em;
+    font-weight:300;
 }
 
 /* Temp image details Styles */
@@ -91,7 +102,6 @@ body {
 .row img {
     position:absolute;
     top:0;
-    width:25%;
     display:block;
 }
 

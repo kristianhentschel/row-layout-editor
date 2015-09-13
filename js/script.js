@@ -2,12 +2,12 @@ $("document").ready(function($) {
 /******************************
  * Row Model, stores rows (duh)
  ******************************/
-    var RowModel = function() {
+    var Model = function() {
         this.rows = [];
     }
 
-    RowModel.prototype.get = function(index) {
-        console.log("RowModel.get", index);
+    Model.prototype.get = function(index) {
+        console.log("Model.get", index);
         if (index < this.rows.length) {
             return this.rows[index];
         } else {
@@ -18,7 +18,7 @@ $("document").ready(function($) {
     /**
      * Inserts a new row before the n'th row, and populates it with the given array of images.
      */
-    RowModel.prototype.create = function(beforeIndex, images) {
+    Model.prototype.create = function(beforeIndex, images) {
         var newRow = {
             images: images.slice()
         }
@@ -29,15 +29,15 @@ $("document").ready(function($) {
     /**
      * Removes the n'th row from the model.
      */
-    RowModel.prototype.remove = function(rowIndex) {
+    Model.prototype.remove = function(rowIndex) {
         this.rows.splice(rowIndex, 1);
     }
 
     /**
      * Removes from the n'th row the m'th image
      */
-    RowModel.prototype.removeImage = function(rowIndex, imageIndex) {
-        console.log("RowModel.removeImage", rowIndex, imageIndex);
+    Model.prototype.removeImage = function(rowIndex, imageIndex) {
+        console.log("Model.removeImage", rowIndex, imageIndex);
         var row = this.get(rowIndex);
         var image = row.images.splice(imageIndex, 1)[0];
         return image;
@@ -46,12 +46,12 @@ $("document").ready(function($) {
     /**
      * Inserts into the n'th row, the given image at position m.
      */
-    RowModel.prototype.insertImage = function(rowIndex, beforeIndex, image) {
+    Model.prototype.insertImage = function(rowIndex, beforeIndex, image) {
         var row = this.get(rowIndex);
         row.images.splice(beforeIndex, 0, image);
     }
 
-    RowModel.prototype.getNumRows = function() {
+    Model.prototype.getNumRows = function() {
         return this.rows.length;
     }
 
@@ -429,7 +429,7 @@ $("document").ready(function($) {
  * Application
  *************/
 
-var m = new RowModel();
+var m = new Model();
 var v = new LayoutView();
 var c = new Controller(m, v);
 
