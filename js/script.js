@@ -33,7 +33,8 @@ $("document").ready(function($) {
     /**
      * Inserts a new row before the given row.
      */
-    Model.prototype.createRow = function(imageIds, beforeRowId) {
+    Model.prototype.createRow = function(beforeRowId) {
+        console.log("Model.createRow", beforeRowId);
         var newRow = {
             rowId: this.lastRowId++,
             images: []
@@ -47,13 +48,6 @@ $("document").ready(function($) {
 
         // insert into row-map
         this.rows[newRow.rowId] = newRow;
-
-        // add the images to the row
-        if (imageIds !== undefined) {
-            for(var i = 0; i < imageIds.length; i++) {
-                this.insertImage(rowId, imageIds[i]);
-            }
-        }
 
         return newRow.rowId;
     }
@@ -152,16 +146,15 @@ $("document").ready(function($) {
             if (fromRow == toRow && imageId == beforeImageId)
                 return;
             self.removeImage(fromRow, imageId);
-            if (beforeImageId == "undefined") {
+            if (beforeImageId == "undefined")
                 beforeImageId = undefined;
-            }
             self.insertImage(toRow, imageId, beforeImageId);
         });
 
-        //self.view.bind('moveImageToNewRow', function(fromRow, fromIndex, toBeforeRow){
-        //    var image = self.removeImage(fromRow, fromIndex);
-        //    self._addRow(toBeforeRow, [image]);
-        //});
+        self.view.bind('moveImageToNewRow', function(imageId, fromRow, toBeforeRow){
+            self.createRow(imageId, toBeforeRow);
+            self.removeImage(fromRow, imageId);
+        });
     }
 
 
@@ -216,6 +209,10 @@ $("document").ready(function($) {
         this.view.render('updateRow', {rowId: toRowId, images: row.images});
     }
 
+    Controller.prototype.createRow = function(imageId, beforeRowId) {
+        var rowId = this.model.createRow(beforeRowId);
+        this.insertImage(rowId, imageId);
+    }
 /**************
  * Layout View
  **************/
@@ -288,6 +285,7 @@ $("document").ready(function($) {
         var self = this;
         var row = document.createElement("div");
         row.className = "row";
+        row.dataset.rowId = rowId;
 
         this.rows[rowId] = row;
         return row;
@@ -398,6 +396,7 @@ $("document").ready(function($) {
                 self.handlers["moveImageToRow"](imageId, rowId, toRowId, beforeImageId);
                 break;
             case "newRow":
+                self.handlers["moveImageToNewRow"](imageId, rowId, toRowId);
                 break;
         }
 
