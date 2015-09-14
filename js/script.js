@@ -107,11 +107,12 @@ $("document").ready(function($) {
      * Inserts into the given row, before a given image id, this image id.
      */
     Model.prototype.insertImage = function(rowId, imageId, beforeImageId) {
+        console.log("Model.insertImage", "row", rowId, "imageId", imageId, "before", beforeImageId);
         var row = this.getRow(rowId);
         var index = row.images.length;
 
         if (beforeImageId !== undefined)
-            index = this._findImageIndex(rowId, imageId);
+            index = this._findImageIndex(rowId, beforeImageId);
 
         row.images.splice(index, 0, this.getImage(imageId));
     }
@@ -140,20 +141,25 @@ $("document").ready(function($) {
         self.view = view;
 
         self.view.bind('removeImage', function(rowId, imageId) {
-            self._removeImage(rowId, imageId);
+            self.removeImage(rowId, imageId);
         })
 
         self.view.bind('addImages', function(images) {
             self.addImages(images);
         });
 
-        //self.view.bind('moveImageToRow', function(fromRow, fromIndex, toRow, toIndex){
-        //    var image = self._removeImage(fromRow, fromIndex);
-        //    self._insertImage(toRow, toIndex, image);
-        //});
+        self.view.bind('moveImageToRow', function(imageId, fromRow, toRow, beforeImageId){
+            if (fromRow == toRow && imageId == beforeImageId)
+                return;
+            self.removeImage(fromRow, imageId);
+            if (beforeImageId == "undefined") {
+                beforeImageId = undefined;
+            }
+            self.insertImage(toRow, imageId, beforeImageId);
+        });
 
         //self.view.bind('moveImageToNewRow', function(fromRow, fromIndex, toBeforeRow){
-        //    var image = self._removeImage(fromRow, fromIndex);
+        //    var image = self.removeImage(fromRow, fromIndex);
         //    self._addRow(toBeforeRow, [image]);
         //});
     }
@@ -162,8 +168,8 @@ $("document").ready(function($) {
     /**
      * Removes the image from the given row, and deletes the row if it becomes empty as a result.
      */
-    Controller.prototype._removeImage = function(rowId, imageId) {
-        console.log("Controller._removeImage", rowId, imageId);
+    Controller.prototype.removeImage = function(rowId, imageId) {
+        console.log("Controller.removeImage", rowId, imageId);
         var row = this.model.getRow(rowId);
         this.model.removeImage(rowId, imageId);
         this.view.render('updateRow', {rowId: rowId, images:row.images});
@@ -201,7 +207,7 @@ $("document").ready(function($) {
     }
 
     Controller.prototype.insertImage = function(toRowId, imageId, beforeImageId) {
-        console.log("Controller._insertImage", toRowId, imageId, beforeImageId);
+        console.log("Controller.insertImage into row", toRowId, "this image", imageId, "before this image", beforeImageId);
 
         this.model.insertImage(toRowId, imageId, beforeImageId);
         var row = this.model.getRow(toRowId);
@@ -237,6 +243,13 @@ $("document").ready(function($) {
         dropbox.addEventListener("dragenter", self._fileDragOver, false);
         dropbox.addEventListener("dragover", self._fileDragOver, false);
         dropbox.addEventListener("drop", function(e){self._fileDrop(e, self);}, false);
+
+        var el = self.$el.get(0);
+        el.addEventListener('dragenter',    function(e) { self._dragEnterHandler(e, self)}, false);
+        el.addEventListener('dragover',     function(e) { self._dragOverHandler(e, self)}, false);
+        el.addEventListener('dragleave',    function(e) { self._dragLeaveHandler(e, self)}, false);
+        el.addEventListener('drop',         function(e) { self._dropHandler(e, self)}, false);
+
     }
 
     LayoutView.prototype.render = function(action, data) {
@@ -263,7 +276,7 @@ $("document").ready(function($) {
             var rowId = rowIds[i];
             var row = this.rows[rowId] || this.createRow(rowId);
 
-            this.orderedRows.push[row];
+            this.orderedRows.push(row);
             this.$el.append(row);
         }
     }
@@ -272,8 +285,10 @@ $("document").ready(function($) {
      * creates a new empty row but does not display it.
      */
     LayoutView.prototype.createRow = function (rowId) {
+        var self = this;
         var row = document.createElement("div");
         row.className = "row";
+
         this.rows[rowId] = row;
         return row;
     }
@@ -292,22 +307,6 @@ $("document").ready(function($) {
             var img = self.getImg(images[i]);
             img.dataset.rowId = rowId;
             
-            // I do not use jQuery events here, because they get lost when the element becomes
-            // detached from the DOM, as in updateRowOrder.
-            // TODO this appraoch adds duplicate listeners...
-            //.attr("draggable", true)
-            //.bind("dragstart",
-            //    function(self, imageIndex) {
-            //        return function(e) {
-            //            var rowIndex = $(e.target).parent().data("index");
-
-            //            var dt = e.originalEvent.dataTransfer;
-            //            dt.setData("text/plain", rowIndex+" "+imageIndex);
-            //            dt.effectAllowed = "move";
-
-            //            self._dragStart(self);
-            //        }
-            //    }(self, i))
             $(row).append(img);
         }
 
@@ -325,7 +324,85 @@ $("document").ready(function($) {
         this.imgs[image.src] = img;
         img.dataset.imageId = image.imageId;
         img.addEventListener('click', function(e) { self._imageClickHandler(e, self); }, false);
+        img.draggable = true;
+        img.addEventListener('dragstart', function(e) { self._imageDragStartHandler(e, self)}, false);
+        img.addEventListener('dragend', function(e) { self._imageDragEndHandler(e, self)}, false);
+
         return img;
+    }
+
+
+    LayoutView.prototype._imageDragStartHandler = function(e, self) {
+        var rowId = e.target.dataset.rowId;
+        var imageId = e.target.dataset.imageId;
+        e.target.classList.add("dragged")
+        e.target.classList.add("forcetop");
+
+        var dt = e.dataTransfer;
+        dt.setData("text/plain", rowId +" "+ imageId);
+        dt.effectAllowed = "move";
+
+        self.enableDropTargets(self);
+    }
+
+    LayoutView.prototype._imageDragEndHandler = function(e, self) {
+        e.target.classList.remove("dragged");
+        self.$el.find(".dropTarget").remove();
+    }
+
+    LayoutView.prototype._dragEnterHandler = function(e, self) {
+        if (!e.target.dataset.action) {
+            e.target.classList.remove("forcetop");
+            return;
+        }
+
+        console.log("dragenter");
+        e.dataTransfer.dropEffect = "move";
+
+        e.stopPropagation();
+        e.preventDefault();
+    }
+
+    LayoutView.prototype._dragOverHandler = function(e, self) {
+        if (!e.target.dataset.action) return;
+
+        if(e.dataTransfer.files.length > 0) { return; }
+
+        e.target.classList.add("active");
+
+        e.stopPropagation();
+        e.preventDefault();
+    }
+
+    LayoutView.prototype._dragLeaveHandler = function(e, self) {
+        if (!e.target.dataset.action) return;
+
+        e.target.classList.remove("active");
+    }
+
+    LayoutView.prototype._dropHandler = function(e, self) {
+        if (!e.target.dataset.action) return;
+        e.target.classList.remove("active");
+        console.log("drop", e.target.dataset.action, e.target.dataset.rowId, e.target.dataset.imageId);
+
+        var toRowId = e.target.dataset.rowId;
+        var beforeImageId = e.target.dataset.imageId;
+
+        var dt = e.dataTransfer;
+        var data = dt.getData("text/plain").split(" ");
+        var rowId = data[0];
+        var imageId = data[1];
+
+        switch (e.target.dataset.action) {
+            case "beforeImage":
+                self.handlers["moveImageToRow"](imageId, rowId, toRowId, beforeImageId);
+                break;
+            case "newRow":
+                break;
+        }
+
+        e.stopPropagation();
+        e.preventDefault();
     }
 
     LayoutView.prototype._imageClickHandler = function(e, self) {
@@ -335,72 +412,56 @@ $("document").ready(function($) {
     }
 
     /**
-     * insert spacers as drop targets.
+     * make the rows drop targets?
      */
-    LayoutView.prototype._dragStart = function(self) {
-        console.log("LayoutView._dragStart");
-        function makeSpacer(i, j) {
-            var $spacer = $("<div>")
-                .addClass("drop-space")
-                .bind("drop", function(e){
-                    var dt = e.originalEvent.dataTransfer;
-                    console.log(dt.getData("text/plain"), "dropped into", i, j);
-
-                    var pos = dt.getData("text/plain").split(" ");
-                    var fromRow = pos[0];
-                    var fromIndex = pos[1];
-
-                    var toRow = i;
-                    var toIndex = j;
-
-                    if (toIndex >= 0) {
-                        self.handlers['moveImageToRow'](fromRow, fromIndex, toRow, toIndex);
-                    } else {
-                        self.handlers['moveImageToNewRow'](fromRow, fromIndex, toRow);
-                    }
-
-                    e.originalEvent.preventDefault();
-                    return false;
-                })
-                .bind("dragover dragenter", function(e){
-                    $(e.target).addClass("drop-hover");
-                    e.originalEvent.preventDefault();
-                })
-                .bind("dragleave", function(e){
-                    $(e.target).removeClass("drop-hover");
-                    e.originalEvent.preventDefault();
-                });
-            if (j < 0) {
-                $spacer.addClass("spacer-row");
-            }
-            return $spacer;
+    LayoutView.prototype.enableDropTargets = function(self) {
+        console.log("enableDropTargets");
+        var makeTarget = function(left, top, width, height, action, rowId, imageId) {
+            var target = document.createElement("div");
+            target.classList.add("dropTarget");
+            target.dataset.action   = action;
+            target.dataset.rowId    = rowId;
+            target.dataset.imageId  = imageId;
+            target.style.left   = left + "px";
+            target.style.top    = top + "px";
+            target.style.width  = width + "px";
+            target.style.height = height + "px";
+            return target;
         }
 
-        self.$el.children(".row").each(function(i, row){
-            // insert spacers before each col and at the end of the row.
-            $(row).children().each(function(j, col) {
-                $(col).before(makeSpacer(i, j));
+
+        for (var i = 0; i < self.orderedRows.length; i++) {
+            console.log(i);
+            var row = self.orderedRows[i];
+            var h = $(row).height();
+            var w = $(row).width();
+
+            var rowId = row.dataset.rowId;
+            var nextRowId = row.nextElementSibling ? row.nextElementSibling.dataset.rowId : -1;
+
+            // after row
+            $(row).append(makeTarget(0, 0, w, 0.2*h, "newRow", rowId));
+            $(row).append(makeTarget(0, 0.8*h, w, 0.2*h, "newRow", nextRowId));
+
+            // before each image
+            $(row).children("img").each(function(j, img){
+                var height = 0.6 * h;
+                var top = 0.2 * h;
+                var left = parseFloat(img.style.left);
+                var width = 0.5 * parseFloat(img.style.width);
+                var rowId = img.dataset.rowId;
+                var imageId = img.dataset.imageId;
+                var nextImageId = img.nextElementSibling ? img.nextElementSibling.dataset.imageId : -1;
+                $(row).append(makeTarget(left, top, width, height, "beforeImage", rowId, imageId));
+                $(row).append(makeTarget(left + width, top, width, height, "beforeImage", rowId, nextImageId));
             });
-            $(row).append(makeSpacer(i, $(row).children().length));
-            self._rebalanceChildren($(row), self.image_margin);
-        });
-            
-        // insert a spacer before each row and after the last row
-        var numRows = self.$rows.length;
-        self.$el.children(".row").each(function(i, row){
-            $(row).before(makeSpacer(i, -1));
-        });
-        self.$el.append(makeSpacer(numRows, -1));
-        self.$el.addClass("enable-spacers");
+        }
+        // after last row
     }
 
-    LayoutView.prototype._dragEnd = function(self) {
-        console.log("LayoutView._dragEnd");
+    LayoutView.prototype.removeDropTargets = function(self) {
+        console.log("LayoutView.removeDropTargets");
         self.$el.find(".drop-space").remove();
-        self.$el.removeClass("enable-spacers");
-        self.$el.children(".row").each(function(i, row) {
-            self._rebalanceChildren($(row), self.image_margin);
-        });
     }
 
     /**

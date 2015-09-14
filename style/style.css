@@ -102,6 +102,7 @@ h1 {
 
 .row img {
     position:absolute;
+    z-index:0;
     top:0;
     display:block;
     transition: left ease-out 0.5s,
@@ -112,22 +113,22 @@ h1 {
     transform: translate3D(0,0,0);
 }
 
-.drop-space {
-    display:block;
-    position:absolute;
-    box-sizing:border-box;
-    height:100%;
-    width:0;
-    background-color:#999;
-    border:5px dashed #666;
+.row img.dragged {
+    opacity: 0.5;
+    transform: scale(0.9);
 }
 
-.drop-space.spacer-row {
-    position: relative;
-    width:100%;
-    height:0;
+.row img.forcetop {
+    z-index:2;
 }
 
-.drop-hover {
+.dropTarget {
+    position: absolute;
     background-color:#fff;
+    opacity:0;
+    z-index: 1;
+}
+
+.dropTarget.active {
+    opacity: 0.5;
 }
