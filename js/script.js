@@ -128,11 +128,12 @@ $("document").ready(function($) {
 /************
  * Controller
  ************/
-    var Controller = function(model, view) {
+    var Controller = function(model, view, textView) {
         var self = this;
 
         self.model = model;
         self.view = view;
+        self.textView = textView;
 
         self.view.bind('removeImage', function(rowId, imageId) {
             self.removeImage(rowId, imageId);
@@ -171,6 +172,7 @@ $("document").ready(function($) {
             this.model.removeRow(rowId);
             this.view.render('updateRowOrder', {rowOrder: this.model.getRowOrder()});
         }
+        this.updateTextView();
     }
 
     /**
@@ -207,11 +209,26 @@ $("document").ready(function($) {
 
         this.view.render('updateRowOrder', {rowOrder: this.model.getRowOrder()});
         this.view.render('updateRow', {rowId: toRowId, images: row.images});
+        this.updateTextView();
     }
 
     Controller.prototype.createRow = function(imageId, beforeRowId) {
         var rowId = this.model.createRow(beforeRowId);
         this.insertImage(rowId, imageId);
+    }
+
+    Controller.prototype.updateTextView = function() {
+        var rowOrder = this.model.getRowOrder();
+        var paragraphs = [];
+        for(var i = 0; i < rowOrder.length; i++) {
+            var rowText = "";
+            var row = this.model.getRow(rowOrder[i]);
+            for(var j = 0; j < row.images.length; j++) {
+                rowText += row.images[j].fileName + "\n";
+            }
+            paragraphs.push(rowText);
+        }
+        this.textView.render(paragraphs);
     }
 /**************
  * Layout View
@@ -501,7 +518,7 @@ $("document").ready(function($) {
         $el.children("img").each(function(i, col) {
             var $col = $(col);
             var scaled_width = widths[i] / heights[i] * scaled_height;
-            var left = used_width + (i + 1) * margin;
+            var left = used_width + i * margin;
 
             $col.css('left', left + "px")
                 .css('width', scaled_width + "px")
@@ -563,13 +580,29 @@ $("document").ready(function($) {
         }
     }
 
+/***********
+ * Text View
+ ***********/
+    var TextView = function() {
+        this.$el = $("#text-view");
+    }
+
+    TextView.prototype.render = function(content) {
+        console.log("TextView.render", content);
+        this.$el.empty();
+        for(var i = 0; i < content.length; i++) {
+            this.$el.append($("<p>").text(content[i]));
+        }
+    }
+
 /*************
  * Application
  *************/
 
 var m = new Model();
 var v = new LayoutView();
-var c = new Controller(m, v);
+var tv = new TextView();
+var c = new Controller(m, v, tv);
 
 console.log(c);
 

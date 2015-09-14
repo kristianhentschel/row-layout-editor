@@ -57,15 +57,10 @@ body {
 }
 
 #controls {
-    top: 0;
-    right: 0;
+    text-align:center;
     padding:1em;
-
     background-color:#eee;
     color:#111;
-
-
-    text-align:center;
 }
 
 h1 {
@@ -73,6 +68,7 @@ h1 {
     letter-spacing:.5em;
     font-size:1.2em;
     font-weight:300;
+    text-align:center;
 }
 
 /* Temp image details Styles */
@@ -83,7 +79,7 @@ h1 {
 }
 
 /* Row-Layout styles */
-.row-container {
+p, .row-container {
     width:80%;
     max-width:1600px;
     margin:0 auto;
@@ -131,4 +127,16 @@ h1 {
 
 .dropTarget.active {
     opacity: 0.5;
+}
+
+/* Text View Styles */
+#text-view {
+    padding: 0.5em;
+    color: #666;
+    background-color:#333;
+}
+
+#text-view p {
+    margin:1em auto;
+    white-space:pre;
 }
