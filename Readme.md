@@ -4,16 +4,15 @@ _An intuitive, fast, in-browser, image layout preview tool for testing layout id
 
 Drag and drop image files from your Desktop into the browser window to load them into a fluid row layout. Drag and drop images to re-order them or create new rows. Click an image to remove it. That's it.
 
-## Demo
+## Get started
 
-Go to: [kristianhentschel.github.io/row-layout-editor](http://kristianhentschel.github.io/row-layout-editor/)
-
-No image files are uploaded nor is any personal data sent to a server - everything stays in the local browser.
-
+* Download the repository ([zip](https://github.com/kristianhentschel/row-layout-editor/archive/master.zip)) and extract all files.
+* Open "index.html" in your webbrowser (tested in Chrome only)
+* Drop some image files from your Desktop into the website
 
 ## Not yet implemented
 
 * Controls for margin between images and layout preview width
 * Automatic re-layout on window size change
 * Save/Restore a layout, maybe using local storage?
-* Alternative image import UI, as drag and drop cannot work on mobile.
+* Alternative image import UI, as drag and drop cannot work on mobile or when not run as a local file.
